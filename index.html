@@ -57,6 +57,20 @@ img,svg{max-width:100%}
 #searchCount{font-size:12.5px;color:var(--mu);white-space:nowrap}
 .nomatch{margin:0;padding:14px;border:1px dashed var(--br);border-radius:8px;color:var(--mu);font-size:13px;text-align:center}
 #groups mark{background:rgba(255,122,89,.28);color:inherit;border-radius:3px;padding:0 1px}
+.summary .actions{gap:6px}
+.summary #copyBtn{display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:12px;text-align:left;padding:12px 14px;min-height:64px;background:var(--o);border:1px solid var(--o);color:#1A0F0B;border-radius:10px;box-shadow:0 2px 0 rgba(0,0,0,.35),0 8px 18px rgba(255,122,89,.22);cursor:pointer;transition:filter .15s,transform .15s,box-shadow .15s,background-color .2s,border-color .2s}
+.summary #copyBtn::before{display:none}
+.summary #copyBtn .ci{flex:none;width:38px;height:38px;border-radius:9px;background:rgba(26,15,11,.14);position:relative}
+.summary #copyBtn .ci::after{content:"";position:absolute;inset:9px;background:#1A0F0B;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
+.summary #copyBtn .ctx{display:grid;gap:2px;min-width:0}
+.summary #copyBtn .cl{font-size:14.5px;font-weight:800;line-height:1.25}
+.summary #copyBtn .cs{font-size:12px;font-weight:500;line-height:1.35;opacity:.78}
+.summary #copyBtn.done{background:var(--gr);border-color:var(--gr);box-shadow:0 2px 0 rgba(0,0,0,.35),0 8px 18px rgba(45,212,188,.22)}
+.summary #copyBtn.done .ci::after{-webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E")}
+.summary #copyBtn:hover{filter:brightness(1.08);transform:translateY(-1px);box-shadow:0 3px 0 rgba(0,0,0,.35),0 10px 20px rgba(255,122,89,.32)}
+.summary #copyBtn:active{transform:translateY(1px);box-shadow:0 1px 0 rgba(0,0,0,.35)}
+.summary #copyBtn:focus-visible{outline:2px solid var(--dk);outline-offset:3px}
+.copyhint{margin:0;font-size:12px;color:var(--mu);text-align:center}
 #groups .svc[hidden],#groups details.group[hidden],.nomatch[hidden]{display:none!important}
 .idhead h2{font-size:22px;font-weight:800;letter-spacing:-.3px;margin:0 0 6px}
 .idhead p{margin:0;color:var(--mu);font-size:13.5px;max-width:680px}
@@ -860,6 +874,7 @@ function renderSummary(){
   $("summary").innerHTML = `
     <h3>${tx(u.pkg,{t:tier})}</h3>
     <div class="arch">${c.b.name}</div>
+    <div class="actions"><button class="copy" id="copyBtn" type="button"><span class="ci" aria-hidden="true"></span><span class="ctx"><span class="cl">${u.copy}</span><span class="cs">${(COPYHINT[lang]||COPYHINT.en)}</span></span></button></div>
     <div class="price p-one"><span class="lbl"><span class="ptag t-one">${u.tOne}</span>${u.setupFee}</span><span class="val">${fmt(c.setupFee)}</span><span class="sub">${tx(u.hoursN,{n:c.setupHrs})}</span></div>
     <div class="price p-mon"><span class="lbl"><span class="ptag t-mon">${u.tMon}</span>${u.monthlyRet}</span><span class="val">${fmt(c.monthly)}<small>/${u.hrsMo.split("/").pop()}</small></span><span class="sub">${tx(u.hoursMo,{n:c.monHrs})}</span></div>
     <div class="price p-tot"><span class="lbl">${u.termValue}</span><span class="val">${fmt(c.year)}</span><span class="sub">${fmt(c.setupFee)} + ${fmt(c.monthly)} × ${state.months}</span><span class="sub">${tx(u.termSub,{m:state.months})}</span></div>
@@ -873,7 +888,6 @@ function renderSummary(){
       ${c.monHrs?`<tr class="sub"><td>${u.rcMon}</td><td>${c.monHrs}</td><td>${fmt(c.monthly)}</td></tr>`:""}
     </tbody></table></div>`:`<p class="note">${u.emptyIncl}</p>`}
     <div><div class="olbl">${u.commit}</div><ul>${co.outcomes.slice(0,3).map(o=>`<li>${o}</li>`).join("")}</ul></div>
-    <div class="actions"><button class="copy" id="copyBtn">${u.copy}</button></div>
     <p class="note">${tx(u.rateNote,{m:u.marketNames[MARKETS.indexOf(mkt())]})}</p>`;
 }
 function summaryText(){
@@ -913,11 +927,12 @@ $("groups").addEventListener("input",e=>{ if(e.target.dataset.h){ state.hrs[e.ta
 $("fCx").addEventListener("change",e=>{state.tier=e.target.value; state.hrs={}; renderGroups(); renderSummary();});
 $("fMonths").addEventListener("input",e=>{state.months=Math.max(1,Number(e.target.value)||1);renderSummary();});
 $("summary").addEventListener("click",async e=>{
-  if(e.target.id!=="copyBtn") return;
-  const u = U();
-  try{ await copyTable(); e.target.textContent=u.copied; }
-  catch(err){ e.target.textContent=u.copyFail; }
-  setTimeout(()=>{ if(e.target.isConnected) e.target.textContent=U().copy; },1800);
+  const btn = e.target.closest("#copyBtn"); if(!btn) return;
+  const u = U(), cl = btn.querySelector(".cl"), cs = btn.querySelector(".cs");
+  try{ await copyTable(); btn.classList.add("done"); cl.textContent = u.copied; cs.textContent = COPYDONE[lang]||COPYDONE.en; }
+  catch(err){ cl.textContent = u.copyFail; }
+  clearTimeout(btn._t);
+  btn._t = setTimeout(()=>{ if(!btn.isConnected) return; btn.classList.remove("done"); cl.textContent = U().copy; cs.textContent = COPYHINT[lang]||COPYHINT.en; },2600);
 });
 
 const esc = v=>String(v).replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -1332,6 +1347,8 @@ function renderPresets(){
   renderTiers();
 }
 
+const COPYHINT={en:"As a table, ready to paste into Excel, Word or email","zh-CN":"以表格形式复制，可直接粘贴到 Excel、Word 或邮件",th:"คัดลอกเป็นตาราง พร้อมวางใน Excel, Word หรืออีเมล",vi:"Dạng bảng, sẵn sàng dán vào Excel, Word hoặc email",id:"Dalam format tabel, siap ditempel ke Excel, Word, atau email",ko:"표 형식으로 복사되어 Excel, Word, 이메일에 바로 붙여넣을 수 있습니다"};
+const COPYDONE={en:"Now paste it into Excel, Word or your email","zh-CN":"现在可粘贴到 Excel、Word 或邮件中",th:"วางลงใน Excel, Word หรืออีเมลได้เลย",vi:"Giờ hãy dán vào Excel, Word hoặc email",id:"Sekarang tempelkan ke Excel, Word, atau email",ko:"이제 Excel, Word 또는 이메일에 붙여넣으세요"};
 function summaryTable(){
   const c = calc(), u = U(), co = content(), tier = u[state.preset] || u.custom, cur = mkt().cur;
   const mName = u.marketNames[MARKETS.indexOf(mkt())];
