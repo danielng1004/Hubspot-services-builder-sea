@@ -50,6 +50,14 @@ img,svg{max-width:100%}
 .hero p{margin:0;color:var(--mu);font-size:14.5px;max-width:620px}
 .hero h1 .h1sub{color:var(--o);font-weight:700}
 .idhead{margin-top:32px}
+.svcsearch{position:relative;display:flex;align-items:center;gap:12px}
+.svcsearch input{flex:1;min-width:0;padding:10px 12px 10px 38px;font-size:14px;background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238A9DAE' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.5-3.5'/%3E%3C/svg%3E") 12px center/16px no-repeat;color:var(--nav);border:1px solid var(--br);border-radius:8px}
+.svcsearch input:focus{outline:none;border-color:var(--o);box-shadow:0 0 0 3px rgba(255,122,89,.15)}
+.svcsearch input::placeholder{color:var(--mu)}
+#searchCount{font-size:12.5px;color:var(--mu);white-space:nowrap}
+.nomatch{margin:0;padding:14px;border:1px dashed var(--br);border-radius:8px;color:var(--mu);font-size:13px;text-align:center}
+#groups mark{background:rgba(255,122,89,.28);color:inherit;border-radius:3px;padding:0 1px}
+#groups .svc[hidden],#groups details.group[hidden],.nomatch[hidden]{display:none!important}
 .idhead h2{font-size:22px;font-weight:800;letter-spacing:-.3px;margin:0 0 6px}
 .idhead p{margin:0;color:var(--mu);font-size:13.5px;max-width:680px}
 .idhead+.tabs{margin-top:16px}
@@ -408,6 +416,8 @@ footer a:hover{text-decoration:underline}
         </section>
         <section class="step" aria-labelledby="tS5">
           <div class="stephead"><span class="num" aria-hidden="true">5</span><div><h3 id="tS5"></h3><p id="tS5s"></p></div></div>
+          <div class="svcsearch" role="search"><input type="search" id="fSearch" autocomplete="off"><span id="searchCount" aria-live="polite"></span></div>
+          <p class="nomatch" id="noMatch" hidden></p>
           <div id="groups"></div>
         </section>
       </div>
@@ -1251,7 +1261,7 @@ $("fCx").addEventListener("change",renderTiers);
 $("groups").addEventListener("click",e=>{
   const b = e.target.closest("[data-all]"); if(!b) return;
   e.preventDefault(); e.stopPropagation();
-  const d = b.closest("details"), cbs = [...d.querySelectorAll("input[type=checkbox]")], all = cbs.every(x=>x.checked);
+  const d = b.closest("details"), cbs = [...d.querySelectorAll(".svc:not([hidden]) input[type=checkbox]")], all = cbs.every(x=>x.checked);
   cbs.forEach(x=>{ all ? state.sel.delete(x.dataset.id) : state.sel.add(x.dataset.id); });
   state.open[d.dataset.ph] = true; state.preset = "custom";
   renderPresets(); renderGroups(); renderSummary();
@@ -1368,6 +1378,37 @@ Object.entries({
  ko:["참여 템플릿","{a}에 매핑된 템플릿입니다. 템플릿을 선택하면 해당 모듈이 미리 선택되며, 5단계에서 조정할 수 있습니다."]
 }).forEach(([l,[a,b]])=>{ L[l].ui.lPresetT=a; L[l].ui.s4sT=b; });
 
+const SEARCHTXT={en:["Search services by name, offering or description","No services match “{q}”.","{n} matches"],"zh-CN":["按名称、服务类别或说明搜索服务","没有与“{q}”匹配的服务。","{n} 个结果"],th:["ค้นหาบริการจากชื่อ ประเภท หรือคำอธิบาย","ไม่พบบริการที่ตรงกับ “{q}”","พบ {n} รายการ"],vi:["Tìm dịch vụ theo tên, nhóm dịch vụ hoặc mô tả","Không có dịch vụ nào khớp với “{q}”.","{n} kết quả"],id:["Cari layanan berdasarkan nama, penawaran, atau deskripsi","Tidak ada layanan yang cocok dengan “{q}”.","{n} hasil"],ko:["이름, 서비스 분류, 설명으로 서비스 검색","“{q}”와 일치하는 서비스가 없습니다.","{n}개 결과"]};
+const MOD_BY_ID = Object.fromEntries(MODS.map(m=>[m.id,m]));
+function applySearch(){
+  const inp = $("fSearch"); if(!inp) return;
+  const st = SEARCHTXT[lang] || SEARCHTXT.en;
+  inp.placeholder = st[0]; inp.setAttribute("aria-label", st[0]);
+  const q = inp.value.trim().toLowerCase();
+  if(q && !applySearch.snap) applySearch.snap = {...state.open};
+  if(!q && applySearch.snap){ state.open = applySearch.snap; applySearch.snap = null; }  const groups = [...document.querySelectorAll("#groups details.group")];
+  document.querySelectorAll("#groups mark").forEach(m=>m.replaceWith(m.textContent));
+  let total = 0;
+  groups.forEach(d=>{
+    let n = 0;
+    d.querySelectorAll(".svc").forEach(row=>{
+      const id = row.querySelector("input[type=checkbox]").dataset.id, m = MOD_BY_ID[id];
+      const hay = (row.querySelector("label").textContent + " " + (m ? m.n+" "+m.off+" "+m.d : "")).toLowerCase();
+      const hit = !q || q.split(/\s+/).every(w=>hay.includes(w));
+      row.hidden = !hit; if(hit) n++;
+      if(hit && q) row.querySelectorAll(".t,.d").forEach(el=>{ const t = el.textContent, i = t.toLowerCase().indexOf(q); if(i>=0) el.innerHTML = esc(t.slice(0,i))+"<mark>"+esc(t.slice(i,i+q.length))+"</mark>"+esc(t.slice(i+q.length)); });
+    });
+    total += n;
+    d.hidden = !!q && n===0;
+    if(q) d.open = n>0; else d.open = state.open[d.dataset.ph] ?? false;
+  });
+  $("searchCount").textContent = q ? (lang==="en" && total===1 ? "1 match" : tx(st[2],{n:total})) : "";
+  const nm = $("noMatch"); nm.hidden = !q || total>0; nm.textContent = tx(st[1],{q:inp.value.trim()});
+}
+const _renderGroups0 = renderGroups;
+renderGroups = function(){ _renderGroups0(); applySearch(); };
+$("fSearch").addEventListener("input", applySearch);
+$("fSearch").addEventListener("keydown", e=>{ if(e.key==="Escape"){ e.target.value=""; applySearch(); } });
 setArch("demand",false);
 </script>
 </body>
